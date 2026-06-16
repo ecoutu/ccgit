@@ -4,6 +4,14 @@
   "description": "Track and materialize your Claude Code config from a git repo",
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ecoutu/ccgit.git"
+  },
+  "homepage": "https://github.com/ecoutu/ccgit#readme",
+  "bugs": {
+    "url": "https://github.com/ecoutu/ccgit/issues"
+  },
   "keywords": [
     "claude",
     "claude-code",
