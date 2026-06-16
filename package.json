@@ -4,19 +4,38 @@
   "description": "Track and materialize your Claude Code config from a git repo",
   "type": "module",
   "license": "MIT",
+  "keywords": [
+    "claude",
+    "claude-code",
+    "dotfiles",
+    "config",
+    "cli"
+  ],
   "bin": {
-    "ccgit": "src/cli.ts"
+    "ccgit": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
+    "build": "bun build src/cli.ts --target node --outfile dist/cli.js",
     "test": "bun test",
+    "prepublishOnly": "bun run build",
     "ccgit": "bun run src/cli.ts"
   },
-  "dependencies": {
-    "@clack/prompts": "^0.7.0",
-    "picocolors": "^1.0.0",
-    "smol-toml": "^1.3.0"
-  },
   "devDependencies": {
-    "bun-types": "^1.3.14"
+    "@clack/prompts": "^0.7.0",
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/git": "^10.0.1",
+    "bun-types": "^1.3.14",
+    "picocolors": "^1.0.0",
+    "semantic-release": "^25.0.5",
+    "smol-toml": "^1.3.0"
   }
 }

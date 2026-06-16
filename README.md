@@ -10,11 +10,26 @@ account, history, and caches untouched.
 
 ## Install
 
-Requires [Bun](https://bun.sh) and `git`.
+Requires `git`. Released builds are plain JS and run under Node or Bun:
+
+```bash
+npm install -g ccgit   # or: bun add -g ccgit
+ccgit --help
+```
+
+Or run without installing:
+
+```bash
+npx ccgit --help       # or: bun x ccgit --help
+```
+
+### From source
+
+Requires [Bun](https://bun.sh).
 
 ```bash
 bun install
-bun link   # exposes the `ccgit` command
+bun link   # exposes the `ccgit` command (runs src/cli.ts directly)
 ```
 
 ## Usage
@@ -60,8 +75,27 @@ Three layers prevent committing secrets:
 ## Development
 
 ```bash
-bun test   # run the full suite
+bun test     # run the full suite
+bun run build  # bundle the CLI to dist/cli.js (Node-runnable)
 ```
+
+## Releasing
+
+Releases are automated with [semantic-release](https://semantic-release.gitbook.io/).
+On every push to `main`, the `Release` GitHub Actions workflow runs the tests, builds
+`dist/cli.js`, and — based on the [Conventional Commits](https://www.conventionalcommits.org/)
+in the new commits — determines the next version, then:
+
+- publishes the package to npm,
+- creates a GitHub release with generated notes,
+- updates `CHANGELOG.md`, and
+- commits and tags the release.
+
+Commit messages drive the version bump (`fix:` → patch, `feat:` → minor,
+`feat!:`/`BREAKING CHANGE:` → major). Commits like `chore:`/`docs:` produce no release.
+
+**Required repository secret:** `NPM_TOKEN` — an npm automation token with publish
+rights. `GITHUB_TOKEN` is provided automatically by Actions.
 
 ## License
 

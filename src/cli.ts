@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 import * as git from "./git";
