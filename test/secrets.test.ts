@@ -23,3 +23,22 @@ test("does not flag ordinary config text", () => {
   const text = '{\n  "model": "claude-opus-4-8",\n  "verbose": true\n}';
   expect(scanContent(text, "settings.json")).toEqual([]);
 });
+
+test("does not flag a normal URL", () => {
+  expect(scanContent('  "endpoint": "https://api.example.com/v1/resource/longish-name"', "settings.json")).toEqual([]);
+});
+
+test("does not flag a filesystem path", () => {
+  expect(scanContent("/home/user/.local/share/mise/installs/bun/latest/bin", "f")).toEqual([]);
+});
+
+test("still flags a contiguous high-entropy token", () => {
+  const found = scanContent("token=Xa9Qz2Lp7Vt4Rn8Kw3Yc6Bd1Mf5Hg0Js", "f");
+  expect(found.some((f) => f.rule === "high-entropy")).toBe(true);
+});
+
+test("does not report duplicate findings for the same line+rule", () => {
+  const found = scanContent("sk-abcdefghijklmnopqrstuvwxyz0123", "f");
+  const keys = found.map((f) => `${f.line}:${f.rule}`);
+  expect(new Set(keys).size).toBe(keys.length);
+});

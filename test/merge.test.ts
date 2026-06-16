@@ -39,3 +39,9 @@ test("applyFragment merges into live, preserving untracked keys", () => {
   expect(result.projects["/home/u/proj"].history).toEqual([42]);
   expect(result.projects["/home/u/proj"].mcpServers).toEqual({ local1: { command: "y" } });
 });
+
+test("applyFragment replaces arrays wholesale, does not concatenate", () => {
+  const result = applyFragment({ a: [1, 2, 3], keep: "x" }, { a: [9] });
+  expect(result.a).toEqual([9]);
+  expect(result.keep).toBe("x");
+});

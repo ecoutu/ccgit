@@ -31,10 +31,11 @@ function shannonEntropy(s: string): number {
   return e;
 }
 
-const HIGH_ENTROPY_TOKEN = /[A-Za-z0-9._\-+/=]{20,}/g;
+const HIGH_ENTROPY_TOKEN = /[A-Za-z0-9+=_-]{20,}/g;
 
 export function scanContent(text: string, file: string): Finding[] {
   const findings: Finding[] = [];
+  const seen = new Set<string>();
   const lines = text.split("\n");
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -49,5 +50,10 @@ export function scanContent(text: string, file: string): Finding[] {
       }
     }
   }
-  return findings;
+  return findings.filter((f) => {
+    const key = `${f.file}:${f.line}:${f.rule}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
