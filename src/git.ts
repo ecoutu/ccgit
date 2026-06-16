@@ -32,8 +32,13 @@ export function add(dir: string, paths: string[]): void {
   runOrThrow(dir, ["add", "--", ...paths]);
 }
 
-export function commit(dir: string, message: string): void {
-  runOrThrow(dir, ["commit", "-q", "-m", message]);
+export function commit(dir: string, message: string, opts: { noVerify?: boolean } = {}): void {
+  const args = ["commit", "-q", "-m", message];
+  // Tool-driven commits (init/capture) already ran the secret scan via the
+  // capture path, so they bypass the pre-commit hook — which also avoids a hard
+  // dependency on `ccgit` being on PATH. The hook still guards manual commits.
+  if (opts.noVerify) args.push("--no-verify");
+  runOrThrow(dir, args);
 }
 
 export function status(dir: string): string {
