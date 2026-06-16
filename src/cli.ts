@@ -51,13 +51,23 @@ export async function main(argv: string[]): Promise<number> {
     case "init": {
       const claudeHome = resolveClaudeHome({ dir: dirOpt });
       // Prompt for unclassified entries up front (clack prompts are async).
+      // Without a TTY, clack would block on EOF, so non-interactive runs
+      // decline unknowns by default instead of hanging.
       const approvedUnknown = new Set<string>();
-      for (const c of scan(claudeHome, {}).filter((c) => c.category === "unknown")) {
-        const ans = await p.confirm({
-          message: `Track unclassified entry "${c.path}"?`,
-          initialValue: false,
-        });
-        if (ans === true) approvedUnknown.add(c.path);
+      const unknowns = scan(claudeHome, {}).filter((c) => c.category === "unknown");
+      if (unknowns.length && !process.stdin.isTTY) {
+        warn(
+          `Skipping ${unknowns.length} unclassified entr${unknowns.length === 1 ? "y" : "ies"} (no TTY). ` +
+            `Add them to ccgit.toml [overrides] to track.`,
+        );
+      } else {
+        for (const c of unknowns) {
+          const ans = await p.confirm({
+            message: `Track unclassified entry "${c.path}"?`,
+            initialValue: false,
+          });
+          if (ans === true) approvedUnknown.add(c.path);
+        }
       }
       init({
         repoDir,
