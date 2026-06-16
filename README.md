@@ -13,14 +13,14 @@ account, history, and caches untouched.
 Requires `git`. Released builds are plain JS and run under Node or Bun:
 
 ```bash
-npm install -g ccgit   # or: bun add -g ccgit
+npm install -g @ecoutu/ccgit   # or: bun add -g @ecoutu/ccgit
 ccgit --help
 ```
 
 Or run without installing:
 
 ```bash
-npx ccgit --help       # or: bun x ccgit --help
+npx @ecoutu/ccgit --help       # or: bun x @ecoutu/ccgit --help
 ```
 
 ### From source
