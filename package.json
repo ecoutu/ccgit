@@ -1,5 +1,5 @@
 {
-  "name": "ccgit",
+  "name": "@ecoutu/ccgit",
   "version": "0.1.0",
   "description": "Track and materialize your Claude Code config from a git repo",
   "type": "module",
