@@ -1,0 +1,27 @@
+[settings]
+claude_home = "~/.claude"
+
+[[entry]]
+path = "CLAUDE.md"
+strategy = "copy"
+mode = "write"
+
+[[entry]]
+path = "settings.json"
+strategy = "copy"
+mode = "write"
+
+[[entry]]
+path = "commands/"
+strategy = "copy"
+mode = "write"
+
+[[entry]]
+path = "~/.claude.json"
+strategy = "merge"
+merge_keys = ["mcpServers"]
+merge_project_mcp = true
+
+[overrides]
+# "projects/" = "config"
+# "my-secret.json" = "secret"
