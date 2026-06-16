@@ -1,4 +1,6 @@
 import { readFileSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { isAbsolute, join, resolve, basename } from "node:path";
 import { parse, stringify } from "smol-toml";
 
 export type Strategy = "copy" | "merge";
@@ -33,6 +35,31 @@ export function loadManifest(file: string): Manifest {
     entries,
     overrides: (raw.overrides ?? {}) as Record<string, Category>,
   };
+}
+
+export function expandHome(p: string): string {
+  if (p === "~") return homedir();
+  if (p.startsWith("~/")) return join(homedir(), p.slice(2));
+  return p;
+}
+
+export function resolveClaudeHome(opts: { dir?: string }, manifest?: Manifest): string {
+  const raw = opts.dir ?? process.env.CCGIT_HOME ?? manifest?.claudeHome ?? "~/.claude";
+  return resolve(expandHome(raw));
+}
+
+function isExtraPath(p: string): boolean {
+  return p.startsWith("~") || isAbsolute(p);
+}
+
+export function resolveEntryPath(entry: Entry, claudeHome: string): string {
+  return isExtraPath(entry.path) ? expandHome(entry.path) : join(claudeHome, entry.path);
+}
+
+export function repoPathForEntry(entry: Entry, repoDir: string): string {
+  return isExtraPath(entry.path)
+    ? join(repoDir, basename(expandHome(entry.path)))
+    : join(repoDir, entry.path);
 }
 
 export function saveManifest(file: string, m: Manifest): void {
