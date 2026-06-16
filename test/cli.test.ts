@@ -3,7 +3,17 @@ import { tmpdir } from "node:os";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import * as git from "../src/git";
-import { scanStaged } from "../src/cli";
+import { scanStaged, main } from "../src/cli";
+
+test("commands fail with a clear nonzero code when no ccgit.toml exists", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ccgit-nomani-"));
+  try {
+    const code = await main(["status", "--repo", dir]);
+    expect(code).toBe(1);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
 
 test("scanStaged returns nonzero exit and findings on staged secret", () => {
   const dir = mkdtempSync(join(tmpdir(), "ccgit-scanstaged-"));

@@ -1,10 +1,11 @@
 import { join } from "node:path";
+import { existsSync } from "node:fs";
 import * as git from "./git";
 import { scanContent, type Finding } from "./secrets";
 import { loadManifest, resolveClaudeHome, expandHome } from "./config";
 import { scan } from "./scanner";
 import { init } from "./commands/init";
-import { capture } from "./commands/capture";
+import { capture, SecretError } from "./commands/capture";
 import { apply } from "./commands/apply";
 import { entryStatus } from "./commands/status";
 import { sync } from "./commands/sync";
@@ -29,7 +30,32 @@ function manifestPath(repoDir: string): string {
   return join(repoDir, "ccgit.toml");
 }
 
-export async function main(argv: string[]): Promise<number> {
+function loadRepoManifest(repoDir: string) {
+  const file = manifestPath(repoDir);
+  if (!existsSync(file)) {
+    throw new Error(`No ccgit.toml found in ${repoDir}. Run \`ccgit init\` first.`);
+  }
+  return loadManifest(file);
+}
+
+const HELP = [
+  "ccgit — track and materialize your Claude Code config",
+  "",
+  "Usage: ccgit <command> [options]",
+  "",
+  "Commands:",
+  "  init                Build a repo from your live ~/.claude config",
+  "  capture [-m msg]    Pull live config into the repo (scans for secrets)",
+  "  apply               Materialize repo config into live ~/.claude",
+  "  status              Show per-entry drift between repo and live",
+  "  sync [url] [--pull] Push (and optionally pull) the repo remote",
+  "",
+  "Options:",
+  "  --dir <path>        Override the live config dir (or set CCGIT_HOME)",
+  "  --repo <path>       Repo dir (default: cwd)",
+].join("\n");
+
+async function dispatch(argv: string[]): Promise<number> {
   const [cmd, ...args] = argv;
   const repoDir = getFlag(args, "--repo") ?? process.cwd();
   const dirOpt = getFlag(args, "--dir");
@@ -81,24 +107,34 @@ export async function main(argv: string[]): Promise<number> {
     }
 
     case "capture": {
-      const manifest = loadManifest(manifestPath(repoDir));
+      const manifest = loadRepoManifest(repoDir);
       capture(repoDir, manifest);
       const msg = getFlag(args, "-m");
       git.add(repoDir, ["."]);
+      // capture already ran the secret scan in-process, so the commit can skip
+      // the pre-commit hook (which would otherwise require ccgit on PATH).
       if (msg) git.commit(repoDir, msg, { noVerify: true });
       success("Captured live config into repo" + (msg ? " and committed" : " (staged)"));
       return 0;
     }
 
     case "apply": {
-      const manifest = loadManifest(manifestPath(repoDir));
-      apply(repoDir, manifest);
+      const manifest = loadRepoManifest(repoDir);
+      const drifted = entryStatus(repoDir, manifest).filter((s) => s.state === "drift");
+      if (drifted.length) {
+        warn(
+          `Overwriting ${drifted.length} locally-changed entr${drifted.length === 1 ? "y" : "ies"} (a backup is saved first):`,
+        );
+        for (const s of drifted) info(`  ${s.path}`);
+      }
+      const backupPath = apply(repoDir, manifest);
       success("Applied repo config to live ~/.claude");
+      info(`Backup of previous state: ${backupPath}`);
       return 0;
     }
 
     case "status": {
-      const manifest = loadManifest(manifestPath(repoDir));
+      const manifest = loadRepoManifest(repoDir);
       for (const s of entryStatus(repoDir, manifest)) {
         const label = s.state === "in-sync" ? success : warn;
         label(`${s.path}: ${s.state}`);
@@ -109,7 +145,7 @@ export async function main(argv: string[]): Promise<number> {
     }
 
     case "sync": {
-      const url = args.find((a) => !a.startsWith("-") && a !== "sync");
+      const url = args.find((a) => !a.startsWith("-"));
       const res = sync(repoDir, { remoteUrl: url, pull: args.includes("--pull") });
       success(`Synced with ${res.remote}` + (res.pushed ? " (pushed)" : ""));
       return 0;
@@ -123,29 +159,26 @@ export async function main(argv: string[]): Promise<number> {
     case undefined:
     case "--help":
     case "-h":
-      info(
-        [
-          "ccgit — track and materialize your Claude Code config",
-          "",
-          "Usage: ccgit <command> [options]",
-          "",
-          "Commands:",
-          "  init                Build a repo from your live ~/.claude config",
-          "  capture [-m msg]    Pull live config into the repo (scans for secrets)",
-          "  apply               Materialize repo config into live ~/.claude",
-          "  status              Show per-entry drift between repo and live",
-          "  sync [url] [--pull] Push (and optionally pull) the repo remote",
-          "",
-          "Options:",
-          "  --dir <path>        Override the live config dir (or set CCGIT_HOME)",
-          "  --repo <path>       Repo dir (default: cwd)",
-        ].join("\n"),
-      );
+      info(HELP);
       return 0;
 
     default:
       error(`Unknown command: ${cmd}`);
       return 2;
+  }
+}
+
+export async function main(argv: string[]): Promise<number> {
+  try {
+    return await dispatch(argv);
+  } catch (e) {
+    if (e instanceof SecretError) {
+      error("Secret content detected — aborting:");
+      console.error(formatFindings(e.findings));
+      return 1;
+    }
+    error(e instanceof Error ? e.message : String(e));
+    return 1;
   }
 }
 

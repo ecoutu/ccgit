@@ -1,5 +1,6 @@
 import {
   cpSync,
+  existsSync,
   mkdirSync,
   readFileSync,
   writeFileSync,
@@ -19,43 +20,74 @@ export class SecretError extends Error {
   }
 }
 
-function scanFileOrThrow(absPath: string, label: string): void {
-  const findings = scanContent(readFileSync(absPath, "utf8"), label);
-  if (findings.length) throw new SecretError(findings);
-}
-
-function scanDirOrThrow(absDir: string): void {
-  for (const e of readdirSync(absDir, { withFileTypes: true })) {
-    const child = join(absDir, e.name);
-    if (e.isDirectory()) scanDirOrThrow(child);
-    else scanFileOrThrow(child, child);
+function scanTree(absPath: string): Finding[] {
+  if (statSync(absPath).isDirectory()) {
+    const out: Finding[] = [];
+    for (const e of readdirSync(absPath, { withFileTypes: true })) {
+      out.push(...scanTree(join(absPath, e.name)));
+    }
+    return out;
   }
+  return scanContent(readFileSync(absPath, "utf8"), absPath);
 }
 
-function captureCopy(entry: Entry, claudeHome: string, repoDir: string): void {
-  const src = resolveEntryPath(entry, claudeHome);
-  const dest = repoPathForEntry(entry, repoDir);
-  if (statSync(src).isDirectory()) scanDirOrThrow(src);
-  else scanFileOrThrow(src, src);
-  mkdirSync(dirname(dest), { recursive: true });
-  cpSync(src, dest, { recursive: true });
+// A deferred write, produced only after a clean scan so that a secret in any
+// entry aborts the whole capture before anything is written to the repo.
+interface PlannedWrite {
+  findings: Finding[];
+  write: () => void;
 }
 
-function captureMerge(entry: Entry, claudeHome: string, repoDir: string): void {
+function planCopy(entry: Entry, claudeHome: string, repoDir: string): PlannedWrite {
   const src = resolveEntryPath(entry, claudeHome);
   const dest = repoPathForEntry(entry, repoDir);
-  const live = JSON.parse(readFileSync(src, "utf8"));
+  if (!existsSync(src)) {
+    throw new Error(`Managed entry not found in live config: ${src}`);
+  }
+  return {
+    findings: scanTree(src),
+    write: () => {
+      mkdirSync(dirname(dest), { recursive: true });
+      // dereference: a symlinked live path must store real content, not a link
+      cpSync(src, dest, { recursive: true, dereference: true });
+    },
+  };
+}
+
+function planMerge(entry: Entry, claudeHome: string, repoDir: string): PlannedWrite {
+  const src = resolveEntryPath(entry, claudeHome);
+  const dest = repoPathForEntry(entry, repoDir);
+  if (!existsSync(src)) {
+    throw new Error(`Managed entry not found in live config: ${src}`);
+  }
+  let live: unknown;
+  try {
+    live = JSON.parse(readFileSync(src, "utf8"));
+  } catch (e) {
+    throw new Error(`Failed to parse JSON at ${src}: ${(e as Error).message}`);
+  }
   const fragment = extractFragment(live, entry.mergeKeys ?? [], entry.mergeProjectMcp ?? false);
   const text = JSON.stringify(fragment, null, 2) + "\n";
-  const findings = scanContent(text, dest);
-  if (findings.length) throw new SecretError(findings);
-  mkdirSync(dirname(dest), { recursive: true });
-  writeFileSync(dest, text);
+  return {
+    findings: scanContent(text, dest),
+    write: () => {
+      mkdirSync(dirname(dest), { recursive: true });
+      writeFileSync(dest, text);
+    },
+  };
 }
 
 export function capture(repoDir: string, manifest: Manifest): void {
+  const planned: PlannedWrite[] = [];
+  const findings: Finding[] = [];
   for (const entry of manifest.entries) {
-    if (entry.strategy === "merge") captureMerge(entry, manifest.claudeHome, repoDir);
-    else captureCopy(entry, manifest.claudeHome, repoDir);
+    const p =
+      entry.strategy === "merge"
+        ? planMerge(entry, manifest.claudeHome, repoDir)
+        : planCopy(entry, manifest.claudeHome, repoDir);
+    findings.push(...p.findings);
+    planned.push(p);
   }
+  if (findings.length) throw new SecretError(findings);
+  for (const p of planned) p.write();
 }

@@ -45,9 +45,19 @@ function mergeState(entry: Entry, claudeHome: string, repoDir: string): EntrySta
   const livePath = resolveEntryPath(entry, claudeHome);
   if (!existsSync(repoPath)) return "missing-in-repo";
   if (!existsSync(livePath)) return "missing-in-live";
-  const live = JSON.parse(readFileSync(livePath, "utf8"));
+  let live: unknown;
+  let repoFrag: unknown;
+  try {
+    live = JSON.parse(readFileSync(livePath, "utf8"));
+  } catch (e) {
+    throw new Error(`Failed to parse live JSON at ${livePath}: ${(e as Error).message}`);
+  }
   const liveFrag = extractFragment(live, entry.mergeKeys ?? [], entry.mergeProjectMcp ?? false);
-  const repoFrag = JSON.parse(readFileSync(repoPath, "utf8"));
+  try {
+    repoFrag = JSON.parse(readFileSync(repoPath, "utf8"));
+  } catch (e) {
+    throw new Error(`Failed to parse repo fragment at ${repoPath}: ${(e as Error).message}`);
+  }
   return JSON.stringify(liveFrag) === JSON.stringify(repoFrag) ? "in-sync" : "drift";
 }
 
