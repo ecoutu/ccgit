@@ -103,6 +103,43 @@ test("capture scans all entries before writing; a later secret aborts without wr
   }
 });
 
+test("capture overwrites an existing tracked file with updated live content", () => {
+  const { root, home, repo } = setup();
+  try {
+    writeFileSync(join(home, "CLAUDE.md"), "# new content\n");
+    writeFileSync(join(repo, "CLAUDE.md"), "# stale content\n"); // repo already tracks an old copy
+    const manifest: Manifest = {
+      claudeHome: home,
+      entries: [{ path: "CLAUDE.md", strategy: "copy", mode: "write" }],
+      overrides: {},
+    };
+    capture(repo, manifest);
+    expect(readFileSync(join(repo, "CLAUDE.md"), "utf8")).toBe("# new content\n");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("capture skips a broken symlink nested inside a directory entry", () => {
+  const { root, home, repo } = setup();
+  try {
+    mkdirSync(join(home, "skills"));
+    writeFileSync(join(home, "skills", "real.md"), "# ok\n");
+    // a symlink whose target does not exist (e.g. a skill from a since-deleted repo)
+    symlinkSync(join(home, "skills", "gone"), join(home, "skills", "dangling"));
+    const manifest: Manifest = {
+      claudeHome: home,
+      entries: [{ path: "skills", strategy: "copy", mode: "write" }],
+      overrides: {},
+    };
+    capture(repo, manifest); // must not throw ENOENT on the dangling link
+    expect(readFileSync(join(repo, "skills", "real.md"), "utf8")).toBe("# ok\n");
+    expect(existsSync(join(repo, "skills", "dangling"))).toBe(false);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("capture throws a clear error when a managed entry is missing", () => {
   const { root, home, repo } = setup();
   try {

@@ -21,6 +21,9 @@ export class SecretError extends Error {
 }
 
 function scanTree(absPath: string): Finding[] {
+  // A broken symlink (target removed) resolves to nothing — skip it. There is no
+  // content to scan, and statSync/readFileSync would throw ENOENT on the target.
+  if (!existsSync(absPath)) return [];
   if (statSync(absPath).isDirectory()) {
     const out: Finding[] = [];
     for (const e of readdirSync(absPath, { withFileTypes: true })) {
@@ -48,8 +51,11 @@ function planCopy(entry: Entry, claudeHome: string, repoDir: string): PlannedWri
     findings: scanTree(src),
     write: () => {
       mkdirSync(dirname(dest), { recursive: true });
-      // dereference: a symlinked live path must store real content, not a link
-      cpSync(src, dest, { recursive: true, dereference: true });
+      // dereference: a symlinked live path must store real content, not a link.
+      // force: Bun's cpSync does not overwrite existing files by default, so
+      // without this an updated live file never replaces the tracked copy.
+      // filter: skip broken symlinks — dereference would throw on the missing target.
+      cpSync(src, dest, { recursive: true, dereference: true, force: true, filter: (s) => existsSync(s) });
     },
   };
 }
