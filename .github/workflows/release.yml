@@ -45,6 +45,13 @@ jobs:
 
       - name: Release
         env:
+          # @semantic-release/git pushes the changelog/version bump back to main,
+          # which the branch ruleset only lets the repo owner do. GH_PAT is a
+          # fine-grained PAT owned by that bypass actor; the default GITHUB_TOKEN
+          # (github-actions[bot]) is not a bypass actor and gets GH013-rejected.
+          # semantic-release resolves GH_TOKEN || GITHUB_TOKEN, so GH_TOKEN wins
+          # here while GITHUB_TOKEN stays the built-in token for any other tooling.
+          GH_TOKEN: ${{ secrets.GH_PAT }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: bunx semantic-release
