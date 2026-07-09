@@ -94,8 +94,18 @@ in the new commits — determines the next version, then:
 Commit messages drive the version bump (`fix:` → patch, `feat:` → minor,
 `feat!:`/`BREAKING CHANGE:` → major). Commits like `chore:`/`docs:` produce no release.
 
-**Required repository secret:** `NPM_TOKEN` — an npm automation token with publish
-rights. `GITHUB_TOKEN` is provided automatically by Actions.
+**Required repository secrets:**
+
+- `NPM_TOKEN` — an npm automation token with publish rights.
+- `GH_PAT` — a fine-grained personal access token (Contents + Pull requests:
+  read/write) owned by a user in the `main` branch ruleset's bypass list. The
+  changelog/version-bump commit is pushed to protected `main`, which the default
+  `GITHUB_TOKEN` (`github-actions[bot]`) cannot do — its push is rejected with
+  `GH013`. Rotate this token before it expires or releases will start failing at
+  the push step.
+
+`GITHUB_TOKEN` is still provided automatically by Actions and left in place for
+any other tooling in the release step.
 
 ## License
 
