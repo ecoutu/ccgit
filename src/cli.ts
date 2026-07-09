@@ -109,7 +109,8 @@ async function dispatch(argv: string[]): Promise<number> {
 
     case "capture": {
       const manifest = loadRepoManifest(repoDir);
-      capture(repoDir, manifest);
+      const { skipped } = capture(repoDir, manifest);
+      for (const s of skipped) warn(`Skipped broken symlink (target missing): ${s}`);
       const msg = getFlag(args, "-m");
       git.add(repoDir, ["."]);
       // capture already ran the secret scan in-process, so the commit can skip
