@@ -9,6 +9,7 @@ import {
   existsSync,
   symlinkSync,
   lstatSync,
+  chmodSync,
 } from "node:fs";
 import { join } from "node:path";
 import { capture, SecretError } from "../src/commands/capture";
@@ -147,6 +148,58 @@ test("capture skips a broken symlink inside a managed directory", () => {
     expect(readFileSync(join(repo, "skills", "good.md"), "utf8")).toBe("# good\n");
     expect(existsSync(join(repo, "skills", "dangling"))).toBe(false);
     expect(res.skipped).toEqual([join(dir, "dangling")]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// Skipped when running as root (e.g. some CI containers) since root bypasses
+// filesystem permission checks, so the EACCES this test relies on never fires.
+const isRoot = typeof process.getuid === "function" && process.getuid() === 0;
+test.skipIf(isRoot)("capture fails loudly on a permission error instead of silently skipping", () => {
+  const { root, home, repo } = setup();
+  const locked = join(home, "locked");
+  try {
+    mkdirSync(locked, { recursive: true });
+    writeFileSync(join(locked, "secret.md"), "content\n");
+    // Drop search/read on the parent dir: statSync of a child now throws EACCES,
+    // not ENOENT. existsSync would collapse that to false and skip silently.
+    chmodSync(locked, 0o000);
+    const manifest: Manifest = {
+      claudeHome: home,
+      entries: [{ path: "locked/secret.md", strategy: "copy", mode: "write" }],
+      overrides: {},
+    };
+    let err: NodeJS.ErrnoException | undefined;
+    try {
+      capture(repo, manifest);
+    } catch (e) {
+      err = e as NodeJS.ErrnoException;
+    }
+    expect(err).toBeDefined();
+    // The permission error must surface, not be mistranslated into a benign skip.
+    expect(err?.code).toBe("EACCES");
+    expect(err?.message).not.toMatch(/not found/);
+  } finally {
+    chmodSync(locked, 0o755); // restore so rmSync can clean up
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("capture rejects a manifest entry that escapes the repo directory", () => {
+  const { root, home, repo } = setup();
+  const sentinel = join(root, "outside.txt");
+  try {
+    writeFileSync(sentinel, "must-survive\n");
+    writeFileSync(join(home, "x.md"), "content\n");
+    const manifest: Manifest = {
+      claudeHome: home,
+      // dest = repo/../outside escapes the repo; the destructive rmSync must never run
+      entries: [{ path: "../outside", strategy: "copy", mode: "write" }],
+      overrides: {},
+    };
+    expect(() => capture(repo, manifest)).toThrow(/outside the repo/);
+    expect(readFileSync(sentinel, "utf8")).toBe("must-survive\n");
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

@@ -51,8 +51,10 @@ test("does not flag structured identifiers that merely look busy", () => {
   }
 });
 
-test("still flags a random base64 secret blob", () => {
-  const found = scanContent("aGVsbG8td29ybGQtc3VwZXItc2VjcmV0LXRva2VuLTEyMzQ1Ng==", "f");
+test("still flags a random high-entropy base64url token", () => {
+  // Deterministic literal, but an unstructured random-looking token (not the
+  // base64 of readable text) so it sits well above the 4.5 threshold, not on it.
+  const found = scanContent("pQ7-xR2_wZ9kL4mN8vB1tH6yD3cF5jG0aEsUqW", "f");
   expect(found.some((f) => f.rule === "high-entropy")).toBe(true);
 });
 
