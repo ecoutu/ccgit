@@ -33,6 +33,16 @@ function shannonEntropy(s: string): number {
 
 const HIGH_ENTROPY_TOKEN = /[A-Za-z0-9+=_-]{20,}/g;
 
+// Shannon-entropy cutoff for the catch-all heuristic. Real random secrets
+// (base64/token blobs) measure ~4.8+; structured identifiers that are not
+// secrets — MCP tool names (`mcp__x__y`), git branches/SHAs, URL segments,
+// org IDs — cluster at ~4.0-4.15. 4.5 sits in that gap: it clears those false
+// positives (which otherwise flood every capture and push people to disable
+// the scanner entirely) while the precise DETECTORS above still catch
+// sk-/AWS/bearer/private-key formats regardless of entropy. Since a 20-char
+// token maxes at log2(20)≈4.32, this also lifts the effective minimum length.
+const HIGH_ENTROPY_THRESHOLD = 4.5;
+
 export function scanContent(text: string, file: string): Finding[] {
   const findings: Finding[] = [];
   const seen = new Set<string>();
@@ -44,7 +54,7 @@ export function scanContent(text: string, file: string): Finding[] {
       if (d.re.test(line)) findings.push({ file, line: lineNo, rule: d.rule });
     }
     for (const m of line.match(HIGH_ENTROPY_TOKEN) ?? []) {
-      if (shannonEntropy(m) > 4.0) {
+      if (shannonEntropy(m) >= HIGH_ENTROPY_THRESHOLD) {
         findings.push({ file, line: lineNo, rule: "high-entropy" });
         break;
       }
