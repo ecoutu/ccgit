@@ -1,6 +1,5 @@
 import {
   cpSync,
-  existsSync,
   mkdirSync,
   readFileSync,
   rmSync,
@@ -8,7 +7,7 @@ import {
   statSync,
   readdirSync,
 } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
 import type { Manifest, Entry } from "../config";
 import { resolveEntryPath, repoPathForEntry } from "../config";
 import { extractFragment } from "../merge";
@@ -21,12 +20,38 @@ export class SecretError extends Error {
   }
 }
 
-// existsSync follows symlinks, so it is false for a dangling link. We capture
-// dereferenced content (real files, not links), which a broken link cannot
-// provide — so skip it in both the scan and the copy rather than crashing on
-// the stat that follows it. Skipped paths are surfaced to the caller.
+// The write path deletes dest before copying (see planCopy), so a manifest
+// entry that resolves outside the repo — a `..` traversal, or an unexpected
+// absolute path — would rmSync a directory it has no business touching. Reject
+// any dest that escapes repoDir before the plan is allowed to run.
+function assertWithinRepo(dest: string, repoDir: string): void {
+  const root = resolve(repoDir);
+  const target = resolve(dest);
+  if (target !== root && !target.startsWith(root + sep)) {
+    throw new Error(`Manifest entry resolves outside the repo: ${dest}`);
+  }
+}
+
+// We capture dereferenced content (real files, not links), which a dangling
+// symlink cannot provide — so skip it in both the scan and the copy rather than
+// crashing on the stat that follows it. existsSync would over-skip here: it
+// collapses *every* stat failure to false, so a permission error (EACCES/EPERM)
+// on a readable-looking path would silently drop that file from both the secret
+// scan and the copy. Only a genuine ENOENT (the dangling link's target is gone)
+// is safe to skip; any other error is real and must fail the capture loudly.
+function targetExists(absPath: string): boolean {
+  try {
+    statSync(absPath); // follows symlinks; throws ENOENT for a dangling link
+    return true;
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw e;
+  }
+}
+
+// Skipped paths are surfaced to the caller.
 function scanTree(absPath: string, skipped: string[]): Finding[] {
-  if (!existsSync(absPath)) {
+  if (!targetExists(absPath)) {
     skipped.push(absPath);
     return [];
   }
@@ -51,7 +76,8 @@ interface PlannedWrite {
 function planCopy(entry: Entry, claudeHome: string, repoDir: string): PlannedWrite {
   const src = resolveEntryPath(entry, claudeHome);
   const dest = repoPathForEntry(entry, repoDir);
-  if (!existsSync(src)) {
+  assertWithinRepo(dest, repoDir);
+  if (!targetExists(src)) {
     throw new Error(`Managed entry not found in live config: ${src}`);
   }
   const skipped: string[] = [];
@@ -65,11 +91,12 @@ function planCopy(entry: Entry, claudeHome: string, repoDir: string): PlannedWri
       // already tracked in the repo. Deleting makes every write a fresh copy.
       rmSync(dest, { recursive: true, force: true });
       // dereference: a symlinked live path must store real content, not a link.
-      // filter drops dangling links, whose target dereference() cannot resolve.
+      // filter drops dangling links, whose target dereference() cannot resolve;
+      // targetExists rethrows permission errors instead of silently skipping.
       cpSync(src, dest, {
         recursive: true,
         dereference: true,
-        filter: (s) => existsSync(s),
+        filter: (s) => targetExists(s),
       });
     },
   };
@@ -78,7 +105,8 @@ function planCopy(entry: Entry, claudeHome: string, repoDir: string): PlannedWri
 function planMerge(entry: Entry, claudeHome: string, repoDir: string): PlannedWrite {
   const src = resolveEntryPath(entry, claudeHome);
   const dest = repoPathForEntry(entry, repoDir);
-  if (!existsSync(src)) {
+  assertWithinRepo(dest, repoDir);
+  if (!targetExists(src)) {
     throw new Error(`Managed entry not found in live config: ${src}`);
   }
   let live: unknown;
