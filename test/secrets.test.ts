@@ -37,6 +37,25 @@ test("still flags a contiguous high-entropy token", () => {
   expect(found.some((f) => f.rule === "high-entropy")).toBe(true);
 });
 
+test("does not flag structured identifiers that merely look busy", () => {
+  // Real content that previously tripped the entropy heuristic (~4.0-4.15):
+  // MCP tool names, git branches, org IDs, console URL segments.
+  const lines = [
+    "Use `mcp__atlassian__addCommentToJiraIssue` for each comment:",
+    '"branches":["feat/ENG-5578-jwoolvett-mcp-bq"]',
+    "organizationId=997970628344&project=<GCP_PROJECT_ID>",
+    "summaryFields=:false:32:beginning;cursorTimestamp=<ts>",
+  ];
+  for (const line of lines) {
+    expect(scanContent(line, "f").filter((f) => f.rule === "high-entropy")).toEqual([]);
+  }
+});
+
+test("still flags a random base64 secret blob", () => {
+  const found = scanContent("aGVsbG8td29ybGQtc3VwZXItc2VjcmV0LXRva2VuLTEyMzQ1Ng==", "f");
+  expect(found.some((f) => f.rule === "high-entropy")).toBe(true);
+});
+
 test("does not report duplicate findings for the same line+rule", () => {
   const found = scanContent("sk-abcdefghijklmnopqrstuvwxyz0123", "f");
   const keys = found.map((f) => `${f.line}:${f.rule}`);
