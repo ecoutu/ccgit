@@ -103,6 +103,28 @@ test("capture scans all entries before writing; a later secret aborts without wr
   }
 });
 
+test("capture skips a broken symlink inside a managed directory", () => {
+  const { root, home, repo } = setup();
+  try {
+    const dir = join(home, "skills");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "good.md"), "# good\n");
+    // dangling link whose target does not exist — must be skipped, not crash
+    symlinkSync(join(home, "gone"), join(dir, "dangling"));
+    const manifest: Manifest = {
+      claudeHome: home,
+      entries: [{ path: "skills", strategy: "copy", mode: "write" }],
+      overrides: {},
+    };
+    const res = capture(repo, manifest);
+    expect(readFileSync(join(repo, "skills", "good.md"), "utf8")).toBe("# good\n");
+    expect(existsSync(join(repo, "skills", "dangling"))).toBe(false);
+    expect(res.skipped).toEqual([join(dir, "dangling")]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("capture throws a clear error when a managed entry is missing", () => {
   const { root, home, repo } = setup();
   try {
