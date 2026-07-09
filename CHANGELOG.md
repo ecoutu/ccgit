@@ -1,3 +1,13 @@
+## [1.0.1](https://github.com/ecoutu/ccgit/compare/v1.0.0...v1.0.1) (2026-07-09)
+
+
+### Bug Fixes
+
+* address Copilot review — guard capture dest, harden entropy test, fail loudly on unreadable paths ([6e25b32](https://github.com/ecoutu/ccgit/commit/6e25b323465ab49704711997b2d3a80f38c14ce3)), closes [#1](https://github.com/ecoutu/ccgit/issues/1)
+* overwrite existing entries on capture (Bun cpSync silently no-ops) ([cd12cdf](https://github.com/ecoutu/ccgit/commit/cd12cdf1c06aefb2d2c293c306b49564a4e479ec))
+* raise high-entropy secret threshold from 4.0 to 4.5 ([5f203e3](https://github.com/ecoutu/ccgit/commit/5f203e369cf2c6708b30912109a27fc7e05e1f50)), closes [hi#entropy](https://github.com/hi/issues/entropy)
+* skip broken symlinks on capture instead of crashing ([bc3a201](https://github.com/ecoutu/ccgit/commit/bc3a20164c0a124d21d63a9eb4280957cd59e15c))
+
 # 1.0.0 (2026-06-16)
 
 
