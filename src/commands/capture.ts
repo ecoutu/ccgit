@@ -3,6 +3,7 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  rmSync,
   writeFileSync,
   statSync,
   readdirSync,
@@ -59,6 +60,10 @@ function planCopy(entry: Entry, claudeHome: string, repoDir: string): PlannedWri
     skipped,
     write: () => {
       mkdirSync(dirname(dest), { recursive: true });
+      // Remove the prior copy first: Bun's cpSync silently refuses to overwrite
+      // an existing destination, so re-captures would never update a file/dir
+      // already tracked in the repo. Deleting makes every write a fresh copy.
+      rmSync(dest, { recursive: true, force: true });
       // dereference: a symlinked live path must store real content, not a link.
       // filter drops dangling links, whose target dereference() cannot resolve.
       cpSync(src, dest, {
