@@ -103,6 +103,33 @@ test("capture scans all entries before writing; a later secret aborts without wr
   }
 });
 
+test("capture overwrites an already-tracked entry (Bun cpSync won't on its own)", () => {
+  const { root, home, repo } = setup();
+  try {
+    writeFileSync(join(home, "CLAUDE.md"), "# fresh\n");
+    writeFileSync(join(repo, "CLAUDE.md"), "# stale — from a prior capture\n");
+    const dir = join(home, "commands");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "a.md"), "new-a\n");
+    const repoDir2 = join(repo, "commands");
+    mkdirSync(repoDir2, { recursive: true });
+    writeFileSync(join(repoDir2, "a.md"), "old-a\n");
+    const manifest: Manifest = {
+      claudeHome: home,
+      entries: [
+        { path: "CLAUDE.md", strategy: "copy", mode: "write" },
+        { path: "commands", strategy: "copy", mode: "write" },
+      ],
+      overrides: {},
+    };
+    capture(repo, manifest);
+    expect(readFileSync(join(repo, "CLAUDE.md"), "utf8")).toBe("# fresh\n");
+    expect(readFileSync(join(repoDir2, "a.md"), "utf8")).toBe("new-a\n");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("capture skips a broken symlink inside a managed directory", () => {
   const { root, home, repo } = setup();
   try {
