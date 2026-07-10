@@ -1,3 +1,10 @@
+## [1.0.2](https://github.com/ecoutu/ccgit/compare/v1.0.1...v1.0.2) (2026-07-10)
+
+
+### Bug Fixes
+
+* make git and rules runtime-agnostic for the node-target build ([84d39b1](https://github.com/ecoutu/ccgit/commit/84d39b18258dfb7305801bcd2acc64c6d9cd54a9))
+
 ## [1.0.1](https://github.com/ecoutu/ccgit/compare/v1.0.0...v1.0.1) (2026-07-09)
 
 
