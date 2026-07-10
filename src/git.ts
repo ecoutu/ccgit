@@ -1,12 +1,17 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { spawnSync } from "node:child_process";
 
 function run(cwd: string, args: string[]): { code: number; stdout: string; stderr: string } {
-  const p = Bun.spawnSync(["git", ...args], { cwd, stdout: "pipe", stderr: "pipe" });
+  // node's spawnSync (Bun implements it too) keeps this runnable under both the
+  // `bun run` dev path and the `--target node` built binary, where the `Bun`
+  // global does not exist.
+  const p = spawnSync("git", args, { cwd, encoding: "utf8" });
+  if (p.error) throw p.error;
   return {
-    code: p.exitCode,
-    stdout: p.stdout.toString(),
-    stderr: p.stderr.toString(),
+    code: p.status ?? 1,
+    stdout: p.stdout ?? "",
+    stderr: p.stderr ?? "",
   };
 }
 

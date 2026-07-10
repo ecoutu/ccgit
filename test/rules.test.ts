@@ -32,3 +32,21 @@ test("overrides take priority over defaults", () => {
 test("DEFAULT_RULES ordering puts secret first", () => {
   expect(DEFAULT_RULES[0].category).toBe("secret");
 });
+
+// Locks the Bun.Glob → globToRegExp swap: leading/trailing/mid * wildcards,
+// dotfile globs, and slash-bearing override patterns must still classify.
+test("glob wildcards classify (regexp translation parity)", () => {
+  expect(classify(".env.local", {})).toBe("secret"); // .env*
+  expect(classify("server.key", {})).toBe("secret"); // *.key
+  expect(classify("security_warnings_state_v2.json", {})).toBe("secret");
+  expect(classify("settings.local.json", {})).toBe("config"); // settings*.json
+  expect(classify("build-cache.json", {})).toBe("transient"); // *-cache.json
+  expect(classify("notes.txt", {})).toBe("unknown");
+});
+
+test("slash-bearing override patterns match via glob", () => {
+  // lib/ has no default rule and .py no default extension, so only the override
+  // can classify these — isolating the slash-glob behavior.
+  expect(classify("lib/one.py", { "lib/*.py": "config" })).toBe("config");
+  expect(classify("lib/nested/two.py", { "lib/*.py": "config" })).toBe("unknown"); // * stays in-segment
+});

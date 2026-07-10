@@ -44,6 +44,25 @@ export const DEFAULT_RULES: Rule[] = [
   { pattern: "output-styles/", category: "config" },
 ];
 
+// Minimal glob → RegExp for the simple patterns above (only *, **, ? occur).
+// Replaces Bun.Glob so the module runs under a `--target node` build too, where
+// the `Bun` global is absent. `*` stays within a path segment and `**` crosses
+// separators, matching Bun.Glob's semantics.
+function globToRegExp(glob: string): RegExp {
+  let re = "";
+  for (let i = 0; i < glob.length; i++) {
+    const c = glob[i];
+    if (c === "*") {
+      if (glob[i + 1] === "*") { re += ".*"; i++; } else re += "[^/]*";
+    } else if (c === "?") {
+      re += "[^/]";
+    } else {
+      re += c.replace(/[.+^${}()|[\]\\]/g, "\\$&");
+    }
+  }
+  return new RegExp("^" + re + "$");
+}
+
 function matchPattern(pattern: string, relPath: string): boolean {
   const p = relPath.replace(/^\.\//, "");
   if (pattern.endsWith("/")) {
@@ -51,10 +70,10 @@ function matchPattern(pattern: string, relPath: string): boolean {
     return p === dir || p.startsWith(dir + "/");
   }
   if (pattern.includes("/")) {
-    return new Bun.Glob(pattern).match(p);
+    return globToRegExp(pattern).test(p);
   }
-  const g = new Bun.Glob(pattern);
-  return g.match(basename(p)) || g.match(p);
+  const g = globToRegExp(pattern);
+  return g.test(basename(p)) || g.test(p);
 }
 
 export function classify(relPath: string, overrides: Record<string, Category>): Category {
